@@ -1,0 +1,3 @@
+IM19 GitHub connector read/write verification
+Created: 2026-10-21
+Purpose: disposable test on branch test/chatgpt-connector-rw-20261021

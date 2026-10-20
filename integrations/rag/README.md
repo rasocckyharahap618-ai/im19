@@ -41,6 +41,7 @@ For Codespaces, prefer repository/org Codespaces secrets over a committed `.env`
 ```bash
 python -m integrations.rag.healthcheck
 python -m integrations.rag.ingest --dry-run
+python -m integrations.rag.retrieve --query "What are the institutional RAG ingestion rules?" --top-k 5
 ```
 
 A dry run lists supported files and parses/chunks them without writing to Supabase. A normal run writes to the database. First model load downloads model weights, so initial run may take several minutes.

@@ -12,13 +12,24 @@ This integration runs in GitHub Codespaces (or another trusted backend). Dropbox
 
 ## Configure Codespaces secrets
 
-Add these as **Codespaces secrets** (never commit real values):
+1. Open the repository **Settings → Secrets and variables → Codespaces**.
+2. Select **New repository secret** for each required secret below. If you use organization-level secrets, confirm this repository is allowed to access them.
+3. Rebuild/restart the Codespace terminal session after adding secrets if the environment does not expose the new values. Do not paste secret values into Copilot/OpenCode prompts, terminal output, issues, or logs.
 
-- `DROPBOX_ACCESS_TOKEN` — Dropbox API token with read access to source files.
-- `DROPBOX_ROOT_PATH` — default `/Institutional_RAG/01_RAW_SOURCES`.
-- `SUPABASE_URL` — project API URL.
-- `SUPABASE_SERVICE_ROLE_KEY` — backend-only secret key. Never use in browser/client-side code.
-- Optional: `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2`.
+Required secrets:
+
+- `DROPBOX_ACCESS_TOKEN` — Dropbox API token with permission to list and download source files.
+- `SUPABASE_URL` — Supabase project URL (for example, the project's `https://<project-ref>.supabase.co` URL).
+- `SUPABASE_SERVICE_ROLE_KEY` — backend-only service-role secret. Never use it in browser/client-side code, `NEXT_PUBLIC_*` variables, commits, or screenshots.
+
+Optional environment variables (set as Codespaces secrets/variables or in the terminal session):
+
+- `DROPBOX_ROOT_PATH` — defaults to `/Institutional_RAG/01_RAW_SOURCES`.
+- `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions; must match the database vector dimension).
+- `CHUNK_SIZE` — defaults to `900` characters.
+- `CHUNK_OVERLAP` — defaults to `120` characters.
+
+Create a Dropbox API app/token with the least privileges needed to read the designated source folder. The Dropbox token used by ChatGPT's connected app is not automatically available to Codespaces. Do not put real values in `.env.example`; `.gitignore` excludes local `.env` files.
 
 The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed. The integration uses restricted public RPC functions, so the `rag` schema does not need to be exposed through the Data API. The functions are executable only by `service_role`; keep that key backend-only.
 

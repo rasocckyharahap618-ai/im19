@@ -17,9 +17,8 @@ def main() -> None:
     account = dbx.users_get_current_account()
     print(f"Dropbox OK: authenticated account {account.name.display_name}")
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-    docs = sb.schema("rag").table("documents").select("id", count="exact").limit(1).execute()
-    chunks = sb.schema("rag").table("document_chunks").select("id", count="exact").limit(1).execute()
-    print(f"Supabase OK: rag.documents={docs.count}, rag.document_chunks={chunks.count}")
+    status = sb.rpc("rag_connector_health").execute()
+    print(f"Supabase OK: {status.data}")
 
 
 if __name__ == "__main__":

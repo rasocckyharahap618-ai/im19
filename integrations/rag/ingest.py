@@ -128,26 +128,24 @@ def main() -> None:
             continue
 
         document = {
-            "source_uri": path,
-            "source_type": "internal_doc",
-            "source_version": item["rev"],
-            "title": PurePosixPath(path).name,
-            "content_hash": digest,
-            "status": "indexed",
-            "metadata": {"source": "dropbox", "size_bytes": item["size"], "embedding_model": model_name},
-            "indexed_at": datetime.now(timezone.utc).isoformat(),
+            "p_source_uri": path,
+            "p_source_version": item["rev"],
+            "p_title": PurePosixPath(path).name,
+            "p_content_hash": digest,
+            "p_metadata": {"source": "dropbox", "size_bytes": item["size"], "embedding_model": model_name},
         }
-        saved = supabase.schema("rag").table("documents").upsert(
-            document, on_conflict="source_uri,content_hash"
-        ).execute()
+        saved = supabase.rpc("upsert_rag_document", document).execute()
         if not saved.data:
-            raise RuntimeError(f"Supabase did not return document row for {path}")
-        document_id = saved.data[0]["id"]
+            raise RuntimeError(f"Supabase did not return document id for {path}")
+        document_id = saved.data if isinstance(saved.data, str) else saved.data[0]
+        if isinstance(document_id, dict):
+            document_id = document_id.get("upsert_rag_document") or document_id.get("id")
+        if not document_id:
+            raise RuntimeError(f"Could not parse document id for {path}")
 
         vectors = model.encode(chunks, normalize_embeddings=True, show_progress_bar=False)
         chunk_rows = [
             {
-                "document_id": document_id,
                 "chunk_index": i,
                 "content": chunk,
                 "content_hash": hashlib.sha256(chunk.encode("utf-8")).hexdigest(),
@@ -158,13 +156,10 @@ def main() -> None:
             }
             for i, (chunk, vector) in enumerate(zip(chunks, vectors))
         ]
-        # Delete old chunks only after parsing/embedding succeeded; then write the new version.
-        supabase.schema("rag").table("document_chunks").delete().eq("document_id", document_id).execute()
-        for offset in range(0, len(chunk_rows), 100):
-            supabase.schema("rag").table("document_chunks").upsert(
-                chunk_rows[offset:offset + 100],
-                on_conflict="document_id,chunk_index",
-            ).execute()
+        supabase.rpc("replace_rag_document_chunks", {
+            "p_document_id": document_id,
+            "p_chunks": chunk_rows,
+        }).execute()
         print(f"INGESTED {path}: {len(chunks)} chunks sha256={digest[:12]}")
 
     print("Ingestion complete. Run the SQL count/retrieval checks documented in README.")

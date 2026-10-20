@@ -128,9 +128,6 @@ def main() -> None:
             continue
 
         document = {
-            # Existing institutional schema uses source_uri + content_hash for versioned documents.
-        }
-        document = {
             "source_uri": path,
             "source_type": "internal_doc",
             "source_version": item["rev"],

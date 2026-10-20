@@ -20,7 +20,7 @@ Add these as **Codespaces secrets** (never commit real values):
 - `SUPABASE_SERVICE_ROLE_KEY` — backend-only secret key. Never use in browser/client-side code.
 - Optional: `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2`.
 
-The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed. In Supabase Dashboard → API Settings, add `rag` to the exposed schemas so the server-side Supabase client can access it; keep `anon`/`authenticated` grants absent and use only the service-role key on the backend.
+The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed. The integration uses restricted public RPC functions, so the `rag` schema does not need to be exposed through the Data API. The functions are executable only by `service_role`; keep that key backend-only.
 
 ## Setup
 

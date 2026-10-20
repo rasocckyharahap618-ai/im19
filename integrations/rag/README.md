@@ -1,6 +1,6 @@
 # IM 19 — Dropbox → Supabase Institutional RAG
 
-This integration runs in GitHub Codespaces (or another trusted backend). Dropbox is the source of truth for source files; Supabase stores document metadata, chunk text, and 384-dimensional embeddings.
+This integration runs in GitHub Codespaces (or another trusted backend). Dropbox is the source of truth for source files; the existing institutional schema `rag.documents` and `rag.document_chunks` store document metadata, chunk text, and embeddings. It reuses the institutional RAG schema rather than creating a parallel document store.
 
 ## Data flow
 
@@ -20,7 +20,7 @@ Add these as **Codespaces secrets** (never commit real values):
 - `SUPABASE_SERVICE_ROLE_KEY` — backend-only secret key. Never use in browser/client-side code.
 - Optional: `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2`.
 
-The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed.
+The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed. In Supabase Dashboard → API Settings, add `rag` to the exposed schemas so the server-side Supabase client can access it; keep `anon`/`authenticated` grants absent and use only the service-role key on the backend.
 
 ## Setup
 

@@ -128,15 +128,21 @@ def main() -> None:
             continue
 
         document = {
-            "source_path": path,
-            "title": PurePosixPath(path).name,
-            "content_sha256": digest,
-            "source_revision": item["rev"],
-            "source_modified_at": item["modified"],
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
-            "metadata": {"source": "dropbox", "size_bytes": item["size"], "model": model_name},
+            # Existing institutional schema uses source_uri + content_hash for versioned documents.
         }
-        saved = supabase.table("rag_documents").upsert(document, on_conflict="source_path").execute()
+        document = {
+            "source_uri": path,
+            "source_type": "internal_doc",
+            "source_version": item["rev"],
+            "title": PurePosixPath(path).name,
+            "content_hash": digest,
+            "status": "indexed",
+            "metadata": {"source": "dropbox", "size_bytes": item["size"], "embedding_model": model_name},
+            "indexed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        saved = supabase.schema("rag").table("documents").upsert(
+            document, on_conflict="source_uri,content_hash"
+        ).execute()
         if not saved.data:
             raise RuntimeError(f"Supabase did not return document row for {path}")
         document_id = saved.data[0]["id"]
@@ -147,15 +153,18 @@ def main() -> None:
                 "document_id": document_id,
                 "chunk_index": i,
                 "content": chunk,
+                "content_hash": hashlib.sha256(chunk.encode("utf-8")).hexdigest(),
+                "token_count": None,
                 "embedding": vector.tolist(),
-                "metadata": {"source_path": path, "content_sha256": digest},
+                "embedding_model": model_name,
+                "metadata": {"source_uri": path, "source_provider": "dropbox", "document_hash": digest},
             }
             for i, (chunk, vector) in enumerate(zip(chunks, vectors))
         ]
         # Delete old chunks only after parsing/embedding succeeded; then write the new version.
-        supabase.table("rag_chunks").delete().eq("document_id", document_id).execute()
+        supabase.schema("rag").table("document_chunks").delete().eq("document_id", document_id).execute()
         for offset in range(0, len(chunk_rows), 100):
-            supabase.table("rag_chunks").upsert(
+            supabase.schema("rag").table("document_chunks").upsert(
                 chunk_rows[offset:offset + 100],
                 on_conflict="document_id,chunk_index",
             ).execute()

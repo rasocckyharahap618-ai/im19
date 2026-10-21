@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: im19-remote-control-ci-\${{ github.ref }}
+  group: im19-remote-control-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,4 +33,4 @@ jobs:
       - name: Compile MCP server and policy
         run: python -m compileall -q integrations/remote_control tests/test_remote_control_policy.py
       - name: Run policy tests (no credentials or network)
-        run: python -m unittest tests.test_remote_control_policy -v
+        run: python -m unittest discover -s tests -p 'test_remote_control_policy.py' -v

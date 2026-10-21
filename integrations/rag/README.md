@@ -18,7 +18,9 @@ Add these as **Codespaces secrets** (never commit real values):
 - `DROPBOX_ROOT_PATH` — default `/Institutional_RAG/01_RAW_SOURCES`.
 - `SUPABASE_URL` — project API URL.
 - `SUPABASE_SERVICE_ROLE_KEY` — backend-only secret key. Never use in browser/client-side code.
-- Optional: `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2`.
+- Optional: `EMBEDDING_MODEL` — defaults to `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions, matching the current RPC).
+- Optional: `CHUNK_SIZE` and `CHUNK_OVERLAP` — chunking controls; overlap must be smaller than chunk size.
+- Optional: `MAX_FILE_BYTES` — maximum source file size; defaults to 25 MiB.
 
 The Dropbox token must be able to list and download files from the configured folder. Prefer a least-privilege Dropbox app/folder access. Rotate credentials if exposed. The integration uses restricted public RPC functions, so the `rag` schema does not need to be exposed through the Data API. The functions are executable only by `service_role`; keep that key backend-only.
 
@@ -44,8 +46,14 @@ python -m integrations.rag.ingest --dry-run
 python -m integrations.rag.retrieve --query "What are the institutional RAG ingestion rules?" --top-k 5
 ```
 
-A dry run lists supported files and parses/chunks them without writing to Supabase. A normal run writes to the database. First model load downloads model weights, so initial run may take several minutes.
+A dry run lists supported files and parses/chunks them without writing to Supabase. It still downloads source content from Dropbox. The default `MAX_FILE_BYTES` limit is 25 MiB per file; oversized files fail closed rather than being extracted. A normal run writes to the database. First model load downloads model weights, so initial run may take several minutes.
+
+## Security and data-integrity boundaries
+
+- `retrieve.py` is an operator CLI using a backend key. Do not expose it directly as a user-facing endpoint. The current RPC filter is metadata filtering, not per-user authorization. Before serving multiple users or tenants, implement and test identity-bound document authorization in the trusted backend and database design.
+- The current connector migration upserts on `(source_uri, content_hash)`. A changed file may therefore create a new document record while an older version remains. Reconcile this with the actual core schema and retention policy before claiming clean version replacement; do not change live DDL blindly.
+- Document upsert and chunk replacement are separate RPC calls, not a single atomic transaction. A failure between calls can leave partial state. Treat live ingestion as a controlled operator action until a transactional database RPC and recovery tests are implemented.
 
 ## Important status
 
-This is an integration scaffold, not proof of a successful live ingestion. Configure secrets, apply the SQL migration in `supabase/migrations`, run healthcheck and ingestion, then verify document/chunk counts and a retrieval query. No Dropbox or Supabase credentials are stored in this repository.
+This is an integration scaffold, not proof of a successful live ingestion. Configure secrets, reconcile the SQL migration with the target project, run offline tests and healthcheck, then run a dry-run and verify document/chunk counts plus retrieval relevance. No Dropbox or Supabase credentials are stored in this repository.

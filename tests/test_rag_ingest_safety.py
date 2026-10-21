@@ -1,4 +1,3 @@
-import math
 import unittest
 from unittest.mock import patch
 
@@ -10,7 +9,6 @@ from integrations.rag.ingest import (
     validate_embedding_vectors,
     validate_file_size,
 )
-
 
 class RagIngestSafetyTests(unittest.TestCase):
     def test_dropbox_root_requires_specific_absolute_folder(self):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import os
 import re
 from io import BytesIO
@@ -19,6 +20,49 @@ from supabase import create_client
 from integrations.rag.config import require_supabase_config
 
 SUPPORTED = {".txt", ".md", ".markdown", ".html", ".htm", ".pdf", ".docx"}
+DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
+EXPECTED_EMBEDDING_DIMENSION = 384
+
+
+def validate_dropbox_root(root: str) -> str:
+    """Validate an explicit Dropbox folder path; reject root-wide and traversal paths."""
+    value = root.strip()
+    path = PurePosixPath(value)
+    if not value.startswith("/") or value == "/" or ".." in path.parts:
+        raise ValueError("DROPBOX_ROOT_PATH must be a specific absolute folder path without '..' segments.")
+    return str(path)
+
+
+def max_file_bytes_from_env() -> int:
+    raw = os.getenv("MAX_FILE_BYTES", str(DEFAULT_MAX_FILE_BYTES)).strip()
+    try:
+        limit = int(raw)
+    except ValueError as exc:
+        raise ValueError("MAX_FILE_BYTES must be a positive integer.") from exc
+    if limit < 1:
+        raise ValueError("MAX_FILE_BYTES must be a positive integer.")
+    return limit
+
+
+def validate_file_size(path: str, size: int | None, limit: int) -> None:
+    """Reject oversized Dropbox metadata or downloaded content before extraction."""
+    if limit < 1:
+        raise ValueError("File size limit must be positive.")
+    if size is not None and size > limit:
+        raise ValueError(f"Source file exceeds MAX_FILE_BYTES and was skipped: {PurePosixPath(path).name}")
+
+
+def validate_embedding_vectors(vectors, expected_dimension: int = EXPECTED_EMBEDDING_DIMENSION) -> None:
+    """Validate vector count/dimensions and finite values before database writes."""
+    if len(vectors) == 0:
+        raise ValueError("Embedding model returned no vectors.")
+    for index, vector in enumerate(vectors):
+        if len(vector) != expected_dimension:
+            raise ValueError(
+                f"Embedding dimension mismatch at vector {index}: expected {expected_dimension}, got {len(vector)}."
+            )
+        if not all(math.isfinite(float(value)) for value in vector):
+            raise ValueError(f"Embedding vector {index} contains non-finite values.")
 
 
 def require_env(name: str) -> str:
@@ -98,9 +142,8 @@ def main() -> None:
     args = parser.parse_args()
 
     dbx = dropbox.Dropbox(oauth2_access_token=require_env("DROPBOX_ACCESS_TOKEN"))
-    root = os.getenv("DROPBOX_ROOT_PATH", "/Institutional_RAG/01_RAW_SOURCES").strip()
-    if not root.startswith("/"):
-        raise RuntimeError("DROPBOX_ROOT_PATH must be an absolute Dropbox path beginning with '/'.")
+    root = validate_dropbox_root(os.getenv("DROPBOX_ROOT_PATH", "/Institutional_RAG/01_RAW_SOURCES"))
+    max_file_bytes = max_file_bytes_from_env()
     files = list_source_files(dbx, root)
     print(f"Found {len(files)} supported files under {root}")
     if not files:
@@ -119,7 +162,9 @@ def main() -> None:
         parsed_files = 0
         total_chunks = 0
         for item in files:
+            validate_file_size(item["path"], item.get("size"), max_file_bytes)
             raw = download_file(dbx, item["path"])
+            validate_file_size(item["path"], len(raw), max_file_bytes)
             text = extract_text(item["path"], raw)
             chunks = chunk_text(text, chunk_size, overlap)
             if not chunks:
@@ -139,18 +184,30 @@ def main() -> None:
     if not model_name:
         raise RuntimeError("EMBEDDING_MODEL cannot be empty.")
     model = SentenceTransformer(model_name)
+    model_dimension = model.get_sentence_embedding_dimension()
+    if model_dimension != EXPECTED_EMBEDDING_DIMENSION:
+        raise RuntimeError(
+            f"Embedding model dimension mismatch: database RPC expects {EXPECTED_EMBEDDING_DIMENSION}, "
+            f"configured model reports {model_dimension}."
+        )
 
     indexed_files = 0
     indexed_chunks = 0
     for item in files:
         path = item["path"]
+        validate_file_size(path, item.get("size"), max_file_bytes)
         raw = download_file(dbx, path)
+        validate_file_size(path, len(raw), max_file_bytes)
         digest = hashlib.sha256(raw).hexdigest()
         text = extract_text(path, raw)
         chunks = chunk_text(text, chunk_size, overlap)
         if not chunks:
             print(f"SKIP empty/unextractable: {path}")
             continue
+
+        # Finish extraction and embedding validation before creating/updating any database record.
+        vectors = model.encode(chunks, normalize_embeddings=True, show_progress_bar=False)
+        validate_embedding_vectors(vectors)
 
         document = {
             "p_source_uri": path,
@@ -167,9 +224,8 @@ def main() -> None:
             data = data.get("upsert_rag_document") or data.get("id")
         document_id = data
         if not document_id:
-            raise RuntimeError(f"Supabase did not return a document id for source file {path}.")
+            raise RuntimeError(f"Supabase did not return a document id for source file {PurePosixPath(path).name}.")
 
-        vectors = model.encode(chunks, normalize_embeddings=True, show_progress_bar=False)
         chunk_rows = [
             {
                 "chunk_index": i,

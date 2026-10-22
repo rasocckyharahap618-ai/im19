@@ -1,0 +1,1 @@
+{"case":{"id":"fixture-1","query":"retrieval citations","relevant_source_uris":["fixture://policy.md"],"expected_terms":["citation"]},"results":[{"source_uri":"fixture://policy.md","content":"Institutional retrieval requires source citations and provenance."},{"source_uri":"fixture://other.md","content":"An unrelated text."}]}

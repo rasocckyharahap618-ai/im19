@@ -18,6 +18,7 @@ from sentence_transformers import SentenceTransformer
 from supabase import create_client
 
 from integrations.rag.config import require_supabase_config
+from integrations.rag.mining import assess_document, normalize_text, sha256_text
 
 SUPPORTED = {".txt", ".md", ".markdown", ".html", ".htm", ".pdf", ".docx"}
 DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
@@ -165,7 +166,11 @@ def main() -> None:
             validate_file_size(item["path"], item.get("size"), max_file_bytes)
             raw = download_file(dbx, item["path"])
             validate_file_size(item["path"], len(raw), max_file_bytes)
-            text = extract_text(item["path"], raw)
+            text = normalize_text(extract_text(item["path"], raw))
+            quality = assess_document(text)
+            if not quality.accepted:
+                print(f"SKIP quality gate: {item['path']} reasons={','.join(quality.reasons)}")
+                continue
             chunks = chunk_text(text, chunk_size, overlap)
             if not chunks:
                 print(f"SKIP empty/unextractable: {item['path']}")
@@ -198,8 +203,12 @@ def main() -> None:
         validate_file_size(path, item.get("size"), max_file_bytes)
         raw = download_file(dbx, path)
         validate_file_size(path, len(raw), max_file_bytes)
-        digest = hashlib.sha256(raw).hexdigest()
-        text = extract_text(path, raw)
+        text = normalize_text(extract_text(path, raw))
+        quality = assess_document(text)
+        if not quality.accepted:
+            print(f"SKIP quality gate: {path} reasons={','.join(quality.reasons)}")
+            continue
+        digest = sha256_text(text)
         chunks = chunk_text(text, chunk_size, overlap)
         if not chunks:
             print(f"SKIP empty/unextractable: {path}")
@@ -214,7 +223,15 @@ def main() -> None:
             "p_source_version": item["rev"],
             "p_title": PurePosixPath(path).name,
             "p_content_hash": digest,
-            "p_metadata": {"source": "dropbox", "size_bytes": item["size"], "embedding_model": model_name},
+            "p_metadata": {
+                "source": "dropbox",
+                "size_bytes": item["size"],
+                "embedding_model": model_name,
+                "pipeline_version": "im19-institutional-rag-mining-v1",
+                "character_count": quality.character_count,
+                "word_count": quality.word_count,
+                "quality_accepted": quality.accepted,
+            },
         }
         saved = supabase.rpc("upsert_rag_document", document).execute()
         data = saved.data
@@ -234,7 +251,12 @@ def main() -> None:
                 "token_count": None,
                 "embedding": vector.tolist(),
                 "embedding_model": model_name,
-                "metadata": {"source_uri": path, "source_provider": "dropbox", "document_hash": digest},
+                "metadata": {
+                    "source_uri": path,
+                    "source_provider": "dropbox",
+                    "document_hash": digest,
+                    "pipeline_version": "im19-institutional-rag-mining-v1",
+                },
             }
             for i, (chunk, vector) in enumerate(zip(chunks, vectors))
         ]

@@ -1,0 +1,36 @@
+name: IM 19 Remote Control CI
+
+on:
+  push:
+    branches: [main, "feat/qr-remote-control-mcp"]
+    paths:
+      - "integrations/remote_control/**"
+      - "tests/test_remote_control_policy.py"
+      - ".github/workflows/remote-control-ci.yml"
+  pull_request:
+    paths:
+      - "integrations/remote_control/**"
+      - "tests/test_remote_control_policy.py"
+      - ".github/workflows/remote-control-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: im19-remote-control-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile MCP server and policy
+        run: python -m compileall -q integrations/remote_control tests/test_remote_control_policy.py
+      - name: Run policy tests (no credentials or network)
+        run: python -m unittest discover -s tests -p 'test_remote_control_policy.py' -v

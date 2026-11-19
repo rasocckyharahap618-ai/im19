@@ -4,9 +4,6 @@ import re
 from dataclasses import dataclass
 from typing import Iterable
 
-class VerificationError(ValueError):
-    pass
-
 @dataclass(frozen=True)
 class VerificationResult:
     verified: tuple[dict, ...]
@@ -43,11 +40,12 @@ class GateResult:
     violations: tuple[str, ...]
 
 class GateChecker:
-    NUMBER = re.compile(r"(?<![A-Za-z])\\b\\d+(?:\\.\\d+)?%?\\b")
-    ARTIFACT = re.compile(r"(?:[A-Za-z0-9_./-]+\\.(?:py|js|ts|json|ya?ml|md)|/api/[A-Za-z0-9_./{}-]+)", re.I)
-    HEDGE = re.compile(r"\\b(mungkin|sepertinya|probably|perhaps|seems?)\\b", re.I)
-    RECOMMENDATION = re.compile(r"\\b(recommend|recommended|should|sebaiknya|disarankan)\\b", re.I)
-    SCORE = re.compile(r"\\b(?:score|skor|rating)\\s*[:=]?\\s*\\d+(?:\\.\\d+)?", re.I)
+    NUMBER = re.compile(r"(?<![A-Za-z])\b\d+(?:\.\d+)?%?\b")
+    ARTIFACT = re.compile(r"(?:[A-Za-z0-9_./-]+\.(?:py|js|ts|json|ya?ml|md)|/api/[A-Za-z0-9_./{}-]+)", re.I)
+    HEDGE = re.compile(r"\b(mungkin|sepertinya|probably|perhaps|seems?)\b", re.I)
+    RECOMMENDATION = re.compile(r"\b(recommend|recommended|should|sebaiknya|disarankan)\b", re.I)
+    SCORE = re.compile(r"\b(?:score|skor|rating)\s*[:=]?\s*\d+(?:\.\d+)?", re.I)
+    EXECUTION = re.compile(r"\b(test|tested|tests|lulus|passed|berhasil dijalankan)\b", re.I)
 
     @classmethod
     def check(cls, task_view: dict, ledger: set[str], response: dict) -> GateResult:
@@ -55,13 +53,25 @@ class GateChecker:
         answer = str(response.get("answer", ""))
         claims = response.get("claims", [])
         confirmed = [c for c in claims if c.get("status") == "confirmed"]
-        if cls.NUMBER.search(answer) and not any(c.get("number_meta") for c in claims):
-            violations.append("G1: numeric statement lacks number_meta (method, n, source, captured)")
-        if cls.ARTIFACT.search(answer) and not any(str(c.get("evidence", "")).startswith(("doc:", "cmd:", "api:")) for c in claims):
-            violations.append("G2: file/API reference lacks evidence tag")
-        if re.search(r"\\b(test|tested|tests|lulus|passed|berhasil dijalankan)\\b", answer, re.I):
-            if not any(c.get("execution_evidence") for c in claims):
-                violations.append("G3: execution claim lacks execution_evidence")
+        if cls.NUMBER.search(answer):
+            valid_meta = any(
+                isinstance(c.get("number_meta"), dict)
+                and all(c["number_meta"].get(k) for k in ("method", "source", "captured"))
+                and c["number_meta"].get("n") is not None
+                for c in claims
+            )
+            if not valid_meta:
+                violations.append("G1: numeric statement lacks complete number_meta (method, n, source, captured)")
+        if cls.ARTIFACT.search(answer):
+            grounded = any(
+                str(c.get("evidence", "")).startswith(("doc:", "cmd:", "api:"))
+                and c.get("evidence") in ledger
+                for c in claims
+            )
+            if not grounded:
+                violations.append("G2: file/API reference lacks a ledger-backed evidence tag")
+        if cls.EXECUTION.search(answer) and not any(c.get("execution_evidence") for c in claims):
+            violations.append("G3: execution claim lacks execution_evidence")
         if confirmed and cls.HEDGE.search(answer):
             violations.append("G4: hedged language conflicts with confirmed claim status")
         if cls.RECOMMENDATION.search(answer) and not response.get("falsification_conditions"):

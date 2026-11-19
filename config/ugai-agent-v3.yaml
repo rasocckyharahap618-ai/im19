@@ -1,0 +1,11 @@
+name: ugai-agent-v3
+version: 3.0.0
+model: ${ANTHROPIC_MODEL} # Required at runtime; no hard-coded fallback
+max_context_tokens: 200000
+budget_default_usd: 2.00
+budget_warning_ratio: 0.80
+budget_hard_cap_ratio: 1.00
+max_planned_steps: 20
+max_orchestrated_steps: 50
+max_active_specialists: 8
+specialist_budget_ratio: 0.20

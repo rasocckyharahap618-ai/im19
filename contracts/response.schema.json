@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://im19.local/contracts/response.schema.json",
+  "title": "UGAI Agent v3 Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode_used", "answer", "claims", "skills_used", "specialists_spawned", "unknowns", "assumptions", "verification_needed", "cost_usd", "next_action"],
+  "properties": {
+    "mode_used": {"enum": ["FAST", "PLANNED", "ORCHESTRATED", "DYNAMIC"]},
+    "answer": {"type": "string"},
+    "claims": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "skills_used": {"type": "array", "items": {"type": "string"}},
+    "specialists_spawned": {"type": "array", "items": {"type": "object", "required": ["role", "subtask", "result"], "properties": {"role": {"type": "string"}, "subtask": {"type": "string"}, "result": {"type": "string"}}}},
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "verification_needed": {"type": "array", "items": {"type": "string"}},
+    "cost_usd": {"type": "number", "minimum": 0},
+    "next_action": {"type": "string"},
+    "falsification_conditions": {"type": "array", "items": {"type": "string"}},
+    "scoring_rubric": {"type": "string"},
+    "covered_sections": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "claim": {
+      "type": "object", "additionalProperties": false,
+      "required": ["text", "evidence", "status", "number_meta", "execution_evidence"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "evidence": {"type": "string", "minLength": 1},
+        "status": {"enum": ["confirmed", "probable", "unverified", "unknown", "contradicted"]},
+        "number_meta": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["value", "unit", "method", "n", "source", "captured"], "properties": {
+            "value": {}, "unit": {"type": "string"}, "method": {"type": "string"},
+            "n": {"type": ["integer", "null"], "minimum": 0}, "source": {"type": "string"},
+            "captured": {"type": "string", "format": "date-time"}
+          }}
+        ]},
+        "execution_evidence": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

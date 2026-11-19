@@ -1,0 +1,6 @@
+version: 1
+tools:
+  filesystem.read: {module: core.tools.fs, handler: read_text, effects: [read]}
+  filesystem.write: {module: core.tools.fs, handler: write_text, effects: [write], approval_required: true}
+  shell.run: {module: core.tools.shell, handler: run_allowlisted, effects: [execute], approval_required: true}
+  git.status: {module: core.tools.git, handler: status, effects: [read]}

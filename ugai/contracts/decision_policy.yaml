@@ -1,0 +1,16 @@
+version: 1
+thresholds:
+  budget_warning_ratio: 0.80
+  budget_hard_limit_ratio: 1.00
+  max_retries_per_step: 1
+  max_active_specialists: 8
+approval:
+  protected_paths: [main, production, secrets, destructive_migrations]
+  require_human_for_external_side_effects: true
+  require_human_for_irreversible_actions: true
+evidence:
+  confirmed_requires_ledger_tag: true
+  assumptions_downgrade_to: probable
+execution:
+  unknown_tool: abort
+  missing_evidence: fail

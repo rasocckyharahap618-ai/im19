@@ -1,0 +1,10 @@
+class UGAIError(Exception): """Base runtime error."""
+class ConfigurationError(UGAIError): pass
+class PlanValidationError(UGAIError): pass
+class PolicyDenied(UGAIError): pass
+class BudgetExceeded(UGAIError): pass
+class EvidenceMissing(UGAIError): pass
+class ToolExecutionError(UGAIError): pass
+class ProviderError(UGAIError): pass
+class InvalidTransition(UGAIError): pass
+class LeaseConflict(UGAIError): pass

@@ -5,6 +5,9 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["mode", "task", "steps", "assumptions", "abort_conditions"],
+  "allOf": [
+    {"if": {"properties": {"mode": {"const": "PLANNED"}}, "required": ["mode"]}, "then": {"properties": {"steps": {"maxItems": 20}}}}
+  ],
   "properties": {
     "mode": {"enum": ["PLANNED", "ORCHESTRATED", "DYNAMIC"]},
     "task": {"type": "string", "minLength": 1},

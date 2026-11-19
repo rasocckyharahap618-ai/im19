@@ -48,12 +48,21 @@ class UGAIRuntimeTests(unittest.TestCase):
         self.assertEqual(result.rejected[0]["status"], "unverified")
         self.assertEqual(result.verified[0]["status"], "probable")
 
+    def test_gate_checker_rejects_unledgered_artifact_reference(self):
+        result = GateChecker.check({}, set(), {"answer":"See integrations/ugai_runtime/config.py", "claims":[]})
+        self.assertTrue(any(v.startswith("G2") for v in result.violations))
+
+    def test_gate_checker_rejects_hedge_on_confirmed_claim(self):
+        result = GateChecker.check({}, set(), {"answer":"This probably works.", "claims":[{"status":"confirmed"}]})
+        self.assertTrue(any(v.startswith("G4") for v in result.violations))
+
     def test_gate_checker_reports_missing_execution_and_coverage(self):
         result = GateChecker.check(
             {"required_sections":["analysis","risk"]}, set(),
             {"answer":"Tests passed. We recommend a score: 8.", "claims":[], "covered_sections":["analysis"]}
         )
         self.assertFalse(result.passed)
+        self.assertTrue(any(v.startswith("G1") for v in result.violations))
         self.assertTrue(any(v.startswith("G3") for v in result.violations))
         self.assertTrue(any(v.startswith("G5") for v in result.violations))
         self.assertTrue(any(v.startswith("G6") for v in result.violations))

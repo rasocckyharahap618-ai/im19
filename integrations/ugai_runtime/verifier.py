@@ -4,6 +4,9 @@ import re
 from dataclasses import dataclass
 from typing import Iterable
 
+class VerificationError(ValueError):
+    """Raised when a verification contract cannot be satisfied."""
+
 @dataclass(frozen=True)
 class VerificationResult:
     verified: tuple[dict, ...]

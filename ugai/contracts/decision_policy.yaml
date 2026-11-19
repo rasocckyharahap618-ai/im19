@@ -5,7 +5,7 @@ thresholds:
   max_retries_per_step: 1
   max_active_specialists: 8
 approval:
-  protected_paths: ["main", "production", "secrets", "migrations/destructive"]
+  protected_paths: [main, production, secrets, destructive_migrations]
   require_human_for_external_side_effects: true
   require_human_for_irreversible_actions: true
 evidence:

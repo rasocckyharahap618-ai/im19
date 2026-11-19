@@ -1,1 +1,1 @@
-"""UGAI core package."""
+"""UGAI runtime core."""

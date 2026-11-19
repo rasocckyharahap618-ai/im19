@@ -1,4 +1,4 @@
-class UGAIError(Exception): """Base runtime error."""
+class UGAIError(Exception): pass
 class ConfigurationError(UGAIError): pass
 class PlanValidationError(UGAIError): pass
 class PolicyDenied(UGAIError): pass

@@ -4,8 +4,14 @@ from integrations.ugai_runtime.mode_router import Mode, ModeRouter
 from integrations.ugai_runtime.plan import PlanStep, TaskPlan, PlanValidationError
 from integrations.ugai_runtime.policy import PolicyDecision, PolicyEngine
 from integrations.ugai_runtime.verifier import ClaimVerifier, GateChecker
+from integrations.ugai_runtime.skills import SKILL_REGISTRY, SKILLS_BY_ID
 
 class UGAIRuntimeTests(unittest.TestCase):
+    def test_twelve_skills_have_unique_ids_and_contracts(self):
+        self.assertEqual(len(SKILL_REGISTRY), 12)
+        self.assertEqual(len(SKILLS_BY_ID), 12)
+        self.assertTrue(all(skill.trigger and skill.input_contract and skill.output_contract and skill.failure_mode for skill in SKILL_REGISTRY))
+
     def test_model_must_come_from_environment(self):
         with self.assertRaises(ConfigurationError):
             RuntimeConfig.from_env({})
@@ -24,6 +30,14 @@ class UGAIRuntimeTests(unittest.TestCase):
         invalid = TaskPlan(Mode.PLANNED, "review", (PlanStep(0, "read", {}, ()),), abort_conditions=("stop",))
         with self.assertRaises(PlanValidationError):
             invalid.validate()
+
+    def test_plan_rejects_blank_evidence_tags_and_negative_ids(self):
+        blank = TaskPlan(Mode.PLANNED, "bad", (PlanStep(0, "read", {}, (" ",)),), abort_conditions=("stop",))
+        with self.assertRaises(PlanValidationError):
+            blank.validate()
+        negative = TaskPlan(Mode.PLANNED, "bad", (PlanStep(-1, "read", {}, ("doc:x:1",)),), abort_conditions=("stop",))
+        with self.assertRaises(PlanValidationError):
+            negative.validate()
 
     def test_plan_enforces_planned_limit_and_unique_ids(self):
         steps = tuple(PlanStep(i, "tool", {}, ("cmd:tool",)) for i in range(21))
